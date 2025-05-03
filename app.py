@@ -1,53 +1,84 @@
-from flask import Flask, jsonify, request, render_template
-from flask_sqlalchemy import SQLAlchemy
-import re
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from user_models import Base, User
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.exc import IntegrityError
+from schemas import UserCreate, UserResponse
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-db = SQLAlchemy(app)
+DATABASE_URL = "sqlite:///./user.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base.metadata.create_all(bind=engine)
 
-    def __repr__(self):
-        return f'<User {self.username}>'
+app = FastAPI()
+
+# Dependency to get the database session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+@app.post("/users", response_model=UserResponse)
+async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    '''create a new user'''
+    # Check if the user already exists
+    # Hash the password
+    hashed_password = CryptContext(schemes=["bcrypt"], deprecated="auto").hash(user.password)
+    new_user = User(name=user.name, email=user.email, password=hashed_password) # Create a new user instance
+
+    try:
+        db.add(new_user)  # Add the new user to the session
+        db.commit()  # Commit the transaction to save the user in the database
+        db.refresh(new_user)  # Refresh the instance to get the updated data from the database
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+    return new_user
+
+@app.delete("/users/{user_id}", response_model=UserResponse)
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
+    '''delete a user'''
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return user
 
 
-@app.route("/homepage")
-def homepage():
-    return "Welcome to the homepage!"
+@app.get("/users/{user_id}", response_model=UserResponse)
+def get_user(user_id: int, db: Session = Depends(get_db)):  
+    '''get a user by id'''
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
-@app.route("/signup", methods=["GET", "POST"])
-def signup():
-    if request.method == "POST":
-        username = request.form.get("username")
-        email = request.form.get("email")
-        # validate email
-        email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-        if not re.match(email_regex, email):
-            return jsonify({"message": "Invalid email"}), 400
-        # Check if user already exists
-        existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
-        # print(existing_user)
-        if existing_user:
-            return jsonify({"message": "User with this username or email already exists"}), 400
-        # Here you can add code to save the user to a database
-        new_user = User(username=username, email=email)
-        db.session.add(new_user)
-        db.session.commit()
-        return jsonify({"message": f"User {username} created successfully!"}), 201
-    return render_template("signup.html")
-
-@app.route("/allusers", methods=["GET"])
-def allusers():
-    users = User.query.all()
-    return jsonify([{"username": user.username, "email": user.email} for user in users])
+@app.get('/get_all_users', response_model=list[UserResponse])
+def get_all_users(db: Session = Depends(get_db)):
+    '''get all users'''
+    users = db.query(User).all()
+    #in json format
+    if not users:
+        raise HTTPException(status_code=404, detail="No users found")
+    # Convert to list of dictionaries
+    users = [user.__dict__ for user in users]
+    return users
 
 
 
-if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
