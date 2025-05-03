@@ -1,36 +1,26 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from user_models import Base, User
+from user_models import User
 from passlib.context import CryptContext
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.exc import IntegrityError
 from schemas import UserCreate, UserResponse
+from user_signin import router as user_router
+from dependencies import get_db
 
-DATABASE_URL = "sqlite:///./user.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Include the user router
+app.include_router(user_router, prefix="/auth", tags=["Authentication"])
+
+
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
-@app.post("/users", response_model=UserResponse)
+@app.post("/users", response_model=UserResponse, tags=["Admin"])
 async def create_user(user: UserCreate, db: Session = Depends(get_db)):
     '''create a new user'''
     # Check if the user already exists
@@ -50,7 +40,7 @@ async def create_user(user: UserCreate, db: Session = Depends(get_db)):
         )
     return new_user
 
-@app.delete("/users/{user_id}", response_model=UserResponse)
+@app.delete("/users/{user_id}", response_model=UserResponse, tags=["Admin"])
 async def delete_user(user_id: int, db: Session = Depends(get_db)):
     '''delete a user'''
     user = db.query(User).filter(User.id == user_id).first()
@@ -61,7 +51,7 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
     return user
 
 
-@app.get("/users/{user_id}", response_model=UserResponse)
+@app.get("/users/{user_id}", response_model=UserResponse, tags=["Admin"])
 def get_user(user_id: int, db: Session = Depends(get_db)):  
     '''get a user by id'''
     user = db.query(User).filter(User.id == user_id).first()
@@ -69,7 +59,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@app.get('/get_all_users', response_model=list[UserResponse])
+@app.get('/get_all_users', response_model=list[UserResponse], tags=["Admin"])
 def get_all_users(db: Session = Depends(get_db)):
     '''get all users'''
     users = db.query(User).all()
