@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from pydantic.config import ConfigDict
 
 # Pydantic model for user creation
 class UserCreate(BaseModel):
@@ -12,5 +13,4 @@ class UserResponse(BaseModel):
     name: str
     email: EmailStr
 
-    class Config:
-        from_attributes = True  # Enable ORM mode to work with SQLAlchemy models
+    model_config = ConfigDict(from_attributes=True)  # Use ConfigDict instead of class-based Config
