@@ -6,6 +6,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.exc import IntegrityError
 from schemas import UserCreate, UserResponse
 from user_signin import router as user_router
+from user_med.medicine_crud import router as medicine_router
 from dependencies import get_db
 
 
@@ -13,7 +14,7 @@ app = FastAPI()
 
 # Include the user router
 app.include_router(user_router, prefix="/auth", tags=["Authentication"])
-
+app.include_router(medicine_router, prefix="/medicines", tags=["Medicines"])
 
 
 @app.get("/")

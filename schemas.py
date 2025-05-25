@@ -14,3 +14,5 @@ class UserResponse(BaseModel):
     email: EmailStr
 
     model_config = ConfigDict(from_attributes=True)  # Use ConfigDict instead of class-based Config
+# Rebuild the schema
+UserResponse.model_rebuild()   
