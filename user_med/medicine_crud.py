@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -22,8 +23,30 @@ async def add_medicine(
                         current_user: User = Depends(get_current_user)
                         ) -> MedicineResponse:
     """Add a new medicine"""
+    #remove rstring and  from the medicine name
+    medicine.name = medicine.name.strip()
+    # Ensure the medicine name is not empty
+    if not medicine.name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Medicine name cannot be empty",
+        )
+    # Check for special characters
+    if not re.match(r'^[A-Za-z0-9 ]+$', medicine.name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Medicine name must not contain special characters",
+        )
+    # Enforce length constraints
+    if len(medicine.name) < 2 or len(medicine.name) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Medicine name must be between 2 and 50 characters",
+        )
+
     # check if the mdeicine exists
-    existing_medicine = medicine_db.query(Medicine).filter(Medicine.name == medicine.name).first()
+    existing_medicine = medicine_db.query(Medicine).filter(Medicine.name == medicine.name, 
+                                                           Medicine.user_id == current_user.id).first()
     if existing_medicine:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
