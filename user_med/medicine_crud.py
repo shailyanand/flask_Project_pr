@@ -68,4 +68,72 @@ async def add_medicine(
 
     return new_medicine
 
+@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_medicine(
+                        medicine_id: int,
+                        user_db: Session = Depends(get_db),
+                        medicine_db: Session = Depends(get_medicine_db),
+                        current_user: User = Depends(get_current_user)
+                        ):
+    """Delete a medicine by ID"""
+    # Fetch the medicine from the database
+    medicine = medicine_db.query(Medicine).filter(Medicine.id == medicine_id, 
+                                                  Medicine.user_id == current_user.id).first()
+    if not medicine:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medicine not found",
+        )
+    
+    # Delete the medicine
+    medicine_db.delete(medicine)
+    medicine_db.commit()
+
+@router.get("/", response_model=list[MedicineResponse])
+async def get_all_medicines(
+                        user_db: Session = Depends(get_db),
+                        medicine_db: Session = Depends(get_medicine_db),
+                        current_user: User = Depends(get_current_user)
+                        ) -> list[MedicineResponse]:
+    """Get all medicines for the current user"""
+    # Fetch all medicines for the current user
+    medicines = medicine_db.query(Medicine).filter(Medicine.user_id == current_user.id).all()
+    
+    if not medicines:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No medicines found",
+        )
+    
+    return medicines
+
+@router.put("/{medicine_id}", response_model=MedicineResponse)
+async def update_medicine(
+                        medicine_id: int,
+                        medicine: MedicineCreate,
+                        user_db: Session = Depends(get_db),
+                        medicine_db: Session = Depends(get_medicine_db),
+                        current_user: User = Depends(get_current_user)
+                        ) -> MedicineResponse:
+    """Update a medicine by ID"""
+    # Fetch the medicine from the database
+    existing_medicine = medicine_db.query(Medicine).filter(Medicine.id == medicine_id, 
+                                                           Medicine.user_id == current_user.id).first()
+    if not existing_medicine:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medicine not found",
+        )
+    
+    # Update the medicine details
+    existing_medicine.name = medicine.name.strip()
+    existing_medicine.description = medicine.description
+    existing_medicine.dosage = medicine.dosage
+    
+    # Commit the changes to the database
+    medicine_db.commit()
+    medicine_db.refresh(existing_medicine)
+    
+    return existing_medicine
+
 
