@@ -1,11 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import sessionmaker, Session
 from user_models import User
+from medicine_records.models import MedicineRecord
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.exc import IntegrityError
 from schemas import UserCreate, UserResponse
 from user_signin import router as user_router
+from medicine_records import router as medicine_router
 from dependencies import get_db
 
 
@@ -13,6 +15,9 @@ app = FastAPI()
 
 # Include the user router
 app.include_router(user_router, prefix="/auth", tags=["Authentication"])
+
+# Include the medicine records router
+app.include_router(medicine_router, prefix="/api", tags=["Medicine"])
 
 
 
